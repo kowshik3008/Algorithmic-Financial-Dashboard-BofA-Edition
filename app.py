@@ -127,14 +127,24 @@ if file:
     
     kpi3.metric("52-Week High", f"${high_52:,.2f}")
     kpi4.metric("52-Week Low", f"${low_52:,.2f}")
+    
+    with st.expander("💡 View Insight Summary"):
+        st.write(f"**Average Close Price:** ${df[close_col].mean():.2f}")
+        st.write(f"**Highest Close Price:** ${df[close_col].max():.2f}")
+        st.write(f"**Lowest Close Price:** ${df[close_col].min():.2f}")
+        if volume_col:
+            st.write(f"**Average Volume:** {df[volume_col].mean():,.0f}")
+        st.write(f"**Models Available:** ARIMA, ML ({'XGBoost' if HAS_XGB else 'RandomForest'})" + (", LSTM" if HAS_TF else "") + (", Prophet" if HAS_PROPHET else ""))
+
     st.markdown("---")
     
     # Dashboard Tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 EDA & Indicators", 
         "🤖 Forecasting Models", 
         "📈 Trading Strategy", 
-        "⚠️ Risk Analysis"
+        "⚠️ Risk Analysis",
+        "📑 Advanced Reports"
     ])
     
     # -------------------------
@@ -186,6 +196,16 @@ if file:
             ax_macd.fill_between(macd_val.index, macd_val, alpha=0.5, color='green')
             ax_macd.plot(macd_val.index, macd_val, color='green')
             st.pyplot(fig_macd)
+
+        st.subheader("Time Series Decomposition")
+        try:
+            # period=30 to approximate a monthly pattern visually in daily stock trading data
+            decomposition = seasonal_decompose(df[close_col].dropna(), model='additive', period=30)
+            fig_decomp = decomposition.plot()
+            fig_decomp.set_size_inches(12, 8)
+            st.pyplot(fig_decomp)
+        except Exception as e:
+            st.warning(f"Decomposition skipped (dataset may be too short or irregular): {e}")
 
     # -------------------------
     # TAB 2: Forecasting Models
@@ -407,6 +427,46 @@ if file:
         ax_dd.set_title("Drawdown over Time")
         ax_dd.set_ylabel("Percentage")
         st.pyplot(fig_dd)
+
+    # -------------------------
+    # TAB 5: Bulk Visualizations
+    # -------------------------
+    with tab5:
+        st.header("📄 Automated Bulk Visualizations")
+        st.write("Generates comprehensive trend & distribution profiles for all numeric datasets automatically (up to 40 charts as configured).")
+
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        chart_count = 0
+        max_charts = 40
+        
+        for col in numeric_cols:
+            if chart_count >= max_charts:
+                break
+                
+            st.markdown(f"#### **{col.upper()} Analysis**")
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                fig_line, ax_line = plt.subplots(figsize=(6, 3))
+                ax_line.plot(df.index if date_col else range(len(df)), df[col], color='teal')
+                ax_line.set_title(f"{col} - Line Trend")
+                st.pyplot(fig_line)
+                chart_count += 1
+                
+            if chart_count >= max_charts:
+                break
+                
+            with col_b:
+                fig_hist, ax_hist = plt.subplots(figsize=(6, 3))
+                ax_hist.hist(df[col].dropna(), bins=40, color='indigo', alpha=0.7)
+                ax_hist.set_title(f"{col} - Distribution")
+                st.pyplot(fig_hist)
+                chart_count += 1
+                
+            st.markdown("---")
+            
+        if chart_count >= max_charts:
+            st.info("Reached maximum logical chart rendering limit (40) for performance.")
 
 else:
     st.info("Upload a CSV file from the sidebar to start the analysis.")
