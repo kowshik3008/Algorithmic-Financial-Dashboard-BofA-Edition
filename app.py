@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import plotly.express as px
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -157,27 +159,27 @@ if file:
         st.dataframe(df.head())
         
         st.subheader("Stock Price & Moving Averages")
-        fig, ax = plt.subplots(figsize=(12, 5))
-        x_axis = df.index if date_col else range(len(df))
-        ax.plot(x_axis, df[close_col], label='Close', color='blue')
-        ax.plot(x_axis, df['MA30'], label='MA30', color='orange', alpha=0.8)
-        ax.plot(x_axis, df['MA90'], label='MA90', color='green', alpha=0.8)
-        ax.set_title("Price Trend")
-        ax.legend()
-        st.pyplot(fig)
+        fig = go.Figure()
+        x_axis = df.index.to_numpy() if date_col else np.arange(len(df))
+        fig.add_trace(go.Scatter(x=x_axis, y=df[close_col].to_numpy(), mode='lines', name='Close', line=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=x_axis, y=df['MA30'].to_numpy(), mode='lines', name='MA30', line=dict(color='orange', width=2)))
+        fig.add_trace(go.Scatter(x=x_axis, y=df['MA90'].to_numpy(), mode='lines', name='MA90', line=dict(color='green', width=2)))
+        fig.update_layout(title="Interactive Price Trend", xaxis_title="Date", yaxis_title="Price", hovermode="x unified", height=500)
+        st.plotly_chart(fig, use_container_width=True)
         
         col1, col2 = st.columns(2)
         with col1:
             if volume_col:
                 st.subheader("Volume Distribution")
-                fig_vol, ax_vol = plt.subplots(figsize=(6, 4))
-                ax_vol.hist(df[volume_col].dropna(), bins=40, color='purple')
-                st.pyplot(fig_vol)
+                fig_vol = px.histogram(df, x=volume_col, nbins=40, color_discrete_sequence=['purple'])
+                fig_vol.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
+                st.plotly_chart(fig_vol, use_container_width=True)
                 
             st.subheader("Volatility (30-day Rolling)")
-            fig_volat, ax_volat = plt.subplots(figsize=(6, 4))
-            ax_volat.plot(df.index if date_col else range(len(df)), df['Volatility'])
-            st.pyplot(fig_volat)
+            fig_volat = go.Figure()
+            fig_volat.add_trace(go.Scatter(x=x_axis, y=df['Volatility'].to_numpy(), mode='lines', line=dict(color='red')))
+            fig_volat.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_volat, use_container_width=True)
             
         with col2:
             st.subheader("Correlation Matrix")
@@ -185,17 +187,17 @@ if file:
             st.dataframe(df.corr(numeric_only=True))
             
             st.subheader("Daily Returns Distribution")
-            fig_ret, ax_ret = plt.subplots(figsize=(6, 4))
-            ax_ret.hist(df['Return'].dropna(), bins=50, color='teal')
-            ax_ret.axvline(0, color='black', linestyle='dashed', linewidth=1)
-            st.pyplot(fig_ret)
+            fig_ret = px.histogram(df.dropna(subset=['Return']), x='Return', nbins=50, color_discrete_sequence=['teal'])
+            fig_ret.add_vline(x=0, line_dash="dash", line_color="black")
+            fig_ret.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_ret, use_container_width=True)
             
             st.subheader("MACD Indicator")
-            fig_macd, ax_macd = plt.subplots(figsize=(6, 4))
+            fig_macd = go.Figure()
             macd_val = df['MACD'].dropna()
-            ax_macd.fill_between(macd_val.index, macd_val, alpha=0.5, color='green')
-            ax_macd.plot(macd_val.index, macd_val, color='green')
-            st.pyplot(fig_macd)
+            fig_macd.add_trace(go.Scatter(x=macd_val.index.to_numpy(), y=macd_val.to_numpy(), fill='tozeroy', mode='lines', line=dict(color='green')))
+            fig_macd.update_layout(height=350, margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_macd, use_container_width=True)
 
         st.subheader("Time Series Decomposition")
         try:
@@ -236,24 +238,21 @@ if file:
             col_m2.metric("Mean Absolute Error (MAE)", f"{mae:.2f}")
             col_m3.metric("Root Mean Sq Error (RMSE)", f"{rmse:.2f}")
             
-            fig_ml, ax_ml = plt.subplots(figsize=(12, 4))
-            x_test_axis = df_ml.index[-len(y_test):] if date_col else range(len(y_test))
-            ax_ml.plot(x_test_axis, y_test, label='Actual Price')
-            ax_ml.plot(x_test_axis, pred, label='Predicted Price', linestyle='--', color='red')
-            ax_ml.legend()
-            ax_ml.set_title(f"{model_type} vs Actual (Test Set)")
-            st.pyplot(fig_ml)
+            fig_ml = go.Figure()
+            x_test_axis = df_ml.index[-len(y_test):].to_numpy() if date_col else np.arange(len(y_test))
+            fig_ml.add_trace(go.Scatter(x=x_test_axis, y=y_test.to_numpy(), mode='lines', name='Actual Price'))
+            fig_ml.add_trace(go.Scatter(x=x_test_axis, y=pred, mode='lines', name='Predicted Price', line=dict(dash='dash', color='red')))
+            fig_ml.update_layout(title=f"{model_type} vs Actual (Test Set)", hovermode="x unified", height=400)
+            st.plotly_chart(fig_ml, use_container_width=True)
             
             # Feature Importance Insight
             if hasattr(model_ml, 'feature_importances_'):
                 st.subheader("🤖 Driver Insights: Feature Importance")
-                fig_feat, ax_feat = plt.subplots(figsize=(10, 3))
                 importances = model_ml.feature_importances_
                 indices = np.argsort(importances)
-                ax_feat.barh(range(len(indices)), importances[indices], color='skyblue', align='center')
-                ax_feat.set_yticks(range(len(indices)), [features[i] for i in indices])
-                ax_feat.set_title(f"What drives {model_type} predictions?")
-                st.pyplot(fig_feat)
+                fig_feat = px.bar(x=importances[indices], y=[features[i] for i in indices], orientation='h', color_discrete_sequence=['skyblue'])
+                fig_feat.update_layout(title=f"What drives {model_type} predictions?", height=300)
+                st.plotly_chart(fig_feat, use_container_width=True)
                 
         else:
             st.warning("Not enough clean data points for ML training.")
@@ -270,10 +269,18 @@ if file:
                     forecast_arima = arima_fit.forecast(30)
                     
                     st.success("ARIMA model trained successfully!")
-                    fig_ar, ax_ar = plt.subplots(figsize=(10, 4))
-                    ax_ar.plot(range(30), forecast_arima, color='orange', marker='o')
-                    ax_ar.set_title("ARIMA 30-Day Forecast")
-                    st.pyplot(fig_ar)
+                    
+                    # Generate dynamic date index for forecast if applicable
+                    last_date = df.index[-1]
+                    if date_col:
+                         future_dates = pd.date_range(start=last_date, periods=31, freq='B')[1:]
+                    else:
+                         future_dates = range(len(df), len(df)+30)
+
+                    fig_ar = go.Figure()
+                    fig_ar.add_trace(go.Scatter(x=future_dates, y=forecast_arima, mode='lines+markers', name='Forecast', marker=dict(color='orange')))
+                    fig_ar.update_layout(title="ARIMA 30-Day Forecast", hovermode="x unified", height=400)
+                    st.plotly_chart(fig_ar, use_container_width=True)
                 except Exception as e:
                     st.error(f"ARIMA Error: {e}")
 
@@ -311,11 +318,11 @@ if file:
                         real_data = scaler.inverse_transform(y_test_lstm)
                         
                         st.success("LSTM Training Complete!")
-                        fig_lstm, ax_lstm = plt.subplots(figsize=(12, 4))
-                        ax_lstm.plot(real_data, label='Actual Price')
-                        ax_lstm.plot(predictions, label='LSTM Prediction', linestyle='--', color='purple')
-                        ax_lstm.legend()
-                        st.pyplot(fig_lstm)
+                        fig_lstm = go.Figure()
+                        fig_lstm.add_trace(go.Scatter(y=real_data.flatten(), mode='lines', name='Actual Price'))
+                        fig_lstm.add_trace(go.Scatter(y=predictions.flatten(), mode='lines', name='LSTM Prediction', line=dict(dash='dash', color='purple')))
+                        fig_lstm.update_layout(title="LSTM Deep Learning Forecast vs Actual", hovermode="x unified", height=400)
+                        st.plotly_chart(fig_lstm, use_container_width=True)
                     except Exception as e:
                         st.error(f"LSTM Training Error: {e}")
 
@@ -334,20 +341,21 @@ if file:
         df['Sell_Signal'] = df['Sell'].diff() == 1
         
         st.subheader("Buy & Sell Signals")
-        fig_sig, ax_sig = plt.subplots(figsize=(14, 6))
+        fig_sig = go.Figure()
         
-        ax_sig.plot(x_axis, df[close_col], label='Close Price', color='black', alpha=0.6)
-        ax_sig.plot(x_axis, df['MA7'], label='MA7', color='blue', alpha=0.4)
-        ax_sig.plot(x_axis, df['MA30'], label='MA30', color='orange', alpha=0.4)
+        x_full = df.index.to_numpy()
+        fig_sig.add_trace(go.Scatter(x=x_full, y=df[close_col].to_numpy(), mode='lines', name='Close Price', line=dict(color='black', width=1)))
+        fig_sig.add_trace(go.Scatter(x=x_full, y=df['MA7'].to_numpy(), mode='lines', name='MA7', line=dict(color='blue', width=1, dash='dot')))
+        fig_sig.add_trace(go.Scatter(x=x_full, y=df['MA30'].to_numpy(), mode='lines', name='MA30', line=dict(color='orange', width=1, dash='dot')))
         
         buy_points = df[df['Buy_Signal']]
         sell_points = df[df['Sell_Signal']]
         
-        ax_sig.scatter(x_axis[df['Buy_Signal']], buy_points[close_col], marker='^', color='green', s=100, label='Buy')
-        ax_sig.scatter(x_axis[df['Sell_Signal']], sell_points[close_col], marker='v', color='red', s=100, label='Sell')
+        fig_sig.add_trace(go.Scatter(x=buy_points.index.to_numpy(), y=buy_points[close_col].to_numpy(), mode='markers', name='Buy Signal', marker=dict(color='green', symbol='triangle-up', size=12)))
+        fig_sig.add_trace(go.Scatter(x=sell_points.index.to_numpy(), y=sell_points[close_col].to_numpy(), mode='markers', name='Sell Signal', marker=dict(color='red', symbol='triangle-down', size=12)))
         
-        ax_sig.legend()
-        st.pyplot(fig_sig)
+        fig_sig.update_layout(title="Interactive Trading Signals", hovermode="x unified", height=500)
+        st.plotly_chart(fig_sig, use_container_width=True)
         
         st.subheader("Backtesting Pipeline")
         initial_capital = 10000
@@ -388,9 +396,10 @@ if file:
         col_b4.metric("Total Trades Executed", int(total_trades))
         
         st.subheader("Portfolio Growth")
-        fig_port, ax_port = plt.subplots(figsize=(10, 4))
-        ax_port.plot(df.index if date_col else range(len(df)), df['Portfolio_Value'])
-        st.pyplot(fig_port)
+        fig_port = go.Figure()
+        fig_port.add_trace(go.Scatter(x=df.index.to_numpy(), y=np.array(df['Portfolio_Value']), mode='lines', line=dict(color='darkgreen')))
+        fig_port.update_layout(title="Backtested Portfolio Value", xaxis_title="Date", yaxis_title="Capital ($)", hovermode="x unified", height=400)
+        st.plotly_chart(fig_port, use_container_width=True)
 
     # -------------------------
     # TAB 4: Risk Analysis
@@ -421,12 +430,10 @@ if file:
         col_r3.metric("Annualized Volatility", f"{annual_vol:.2%}")
         
         st.subheader("Drawdown Curve")
-        fig_dd, ax_dd = plt.subplots(figsize=(12, 4))
-        ax_dd.fill_between(x_axis, drawdown, color='red', alpha=0.3)
-        ax_dd.plot(x_axis, drawdown, color='red')
-        ax_dd.set_title("Drawdown over Time")
-        ax_dd.set_ylabel("Percentage")
-        st.pyplot(fig_dd)
+        fig_dd = go.Figure()
+        fig_dd.add_trace(go.Scatter(x=x_axis, y=np.array(drawdown), fill='tozeroy', mode='lines', line=dict(color='red')))
+        fig_dd.update_layout(title="Drawdown over Time (£)", yaxis_title="Percentage", hovermode="x unified", height=350)
+        st.plotly_chart(fig_dd, use_container_width=True)
 
     # -------------------------
     # TAB 5: Bulk Visualizations
@@ -447,20 +454,20 @@ if file:
             col_a, col_b = st.columns(2)
             
             with col_a:
-                fig_line, ax_line = plt.subplots(figsize=(6, 3))
-                ax_line.plot(df.index if date_col else range(len(df)), df[col], color='teal')
-                ax_line.set_title(f"{col} - Line Trend")
-                st.pyplot(fig_line)
+                fig_line = go.Figure()
+                x_b = df.index.to_numpy() if date_col else np.arange(len(df))
+                fig_line.add_trace(go.Scatter(x=x_b, y=df[col].to_numpy(), mode='lines', line=dict(color='teal')))
+                fig_line.update_layout(title=f"{col} - Line Trend", height=250, margin=dict(l=10, r=10, t=30, b=10))
+                st.plotly_chart(fig_line, use_container_width=True)
                 chart_count += 1
                 
             if chart_count >= max_charts:
                 break
                 
             with col_b:
-                fig_hist, ax_hist = plt.subplots(figsize=(6, 3))
-                ax_hist.hist(df[col].dropna(), bins=40, color='indigo', alpha=0.7)
-                ax_hist.set_title(f"{col} - Distribution")
-                st.pyplot(fig_hist)
+                fig_hist = px.histogram(df.dropna(subset=[col]), x=col, nbins=40, color_discrete_sequence=['indigo'])
+                fig_hist.update_layout(title=f"{col} - Distribution", height=250, margin=dict(l=10, r=10, t=30, b=10))
+                st.plotly_chart(fig_hist, use_container_width=True)
                 chart_count += 1
                 
             st.markdown("---")
