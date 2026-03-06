@@ -1,8 +1,7 @@
-
-# Bank of America Stock Analysis
+# Algorithmic Financial Dashboard: BofA Edition
 
 ## Overview
-This project performs advanced stock analysis using historical Bank of America stock data.
+A modular Streamlit application providing advanced technical analysis, algorithmic trading backtests, and machine learning price forecasts for Bank of America stock.
 
 It includes:
 
